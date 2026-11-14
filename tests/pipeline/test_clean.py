@@ -72,3 +72,20 @@ def test_pick_nights_are_distinct_and_typical_avoids_holidays():
     assert p["heat"] == date(2025, 8, 15)          # busiest summer night that isn't the holiday pick
     assert len(set(p.values())) == 3
     assert p["typical"] not in (date(2025, 7, 4),)
+
+
+def test_attach_locations_keeps_only_zips_within_radius():
+    df = clean_calls(pd.DataFrame([_raw(incident_id="1", zipcode="11213"),
+                                   _raw(incident_id="2", zipcode="11206")]))
+    cents = pd.DataFrame({"zip": ["11213", "11206"],
+                          "lat": [40.671155, 40.701870], "lon": [-73.936266, -73.942552]})
+    out = attach_locations(df, cents, seed=0, radius_km=2.5)
+    assert list(out.zip) == ["11213"]       # 11206 is 2.67 km from the nearest hospital
+
+
+def test_summer_night_skips_any_holiday_week():
+    from pipeline.clean import pick_nights
+    nights = {date(2025, 7, 4): 330, date(2026, 7, 3): 320, date(2026, 8, 14): 290,
+              date(2026, 3, 6): 240, date(2026, 3, 13): 238}
+    df = pd.DataFrame({"night": [n for n, c in nights.items() for _ in range(c)]})
+    assert pick_nights(df)["heat"] == date(2026, 8, 14)

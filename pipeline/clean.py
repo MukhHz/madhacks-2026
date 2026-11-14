@@ -38,8 +38,19 @@ def clean_calls(raw: pd.DataFrame) -> pd.DataFrame:
     return df[(df.t >= 0) & (df.t <= 720)].reset_index(drop=True)
 
 
-def attach_locations(df: pd.DataFrame, centroids: pd.DataFrame, seed: int = 0) -> pd.DataFrame:
+def haversine_km(lat1, lon1, lat2, lon2):
+    lat1, lon1, lat2, lon2 = map(np.radians, (lat1, lon1, lat2, lon2))
+    a = np.sin((lat2 - lat1) / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin((lon2 - lon1) / 2) ** 2
+    return 6371 * 2 * np.arcsin(np.sqrt(a))
+
+
+def attach_locations(df: pd.DataFrame, centroids: pd.DataFrame, seed: int = 0,
+                     radius_km: float | None = None) -> pd.DataFrame:
     c = centroids.assign(zip=centroids["zip"].astype(str))
+    if radius_km is not None:
+        dist = np.min([haversine_km(c["lat"].to_numpy(), c["lon"].to_numpy(), h["lat"], h["lon"])
+                       for h in HOSPITALS], axis=0)
+        c = c[dist <= radius_km]
     out = df.merge(c, on="zip", how="inner").sort_values("incident_id").reset_index(drop=True)
     rng = np.random.default_rng(seed)
     out["lat"] = out["lat"] + rng.uniform(-0.004, 0.004, len(out))
@@ -54,7 +65,7 @@ def pick_nights(df: pd.DataFrame) -> dict[str, date]:
     counts = df.groupby("night").size()
     near_hol = [n for n in counts.index if any(abs((n - h).days) <= 3 for h in HOLIDAYS)]
     holiday = counts[near_hol].idxmax() if near_hol else counts.idxmax()
-    summer = [n for n in counts.index if n.month in (6, 7, 8) and n != holiday]
+    summer = [n for n in counts.index if n.month in (6, 7, 8) and n not in near_hol]
     heat = counts[summer].idxmax() if summer else counts.drop(holiday).idxmax()
     ordinary = counts.drop([n for n in set(near_hol) | {holiday, heat} if n in counts.index])
     if ordinary.empty:
@@ -70,7 +81,8 @@ def real_stats(df: pd.DataFrame) -> dict:
 
 def load_all(raw_path: str = "data/raw/fridays.parquet", seed: int = 0) -> pd.DataFrame:
     raw = pd.read_parquet(raw_path)
-    return attach_locations(clean_calls(raw), pd.read_csv(CITY["centroids_csv"], dtype={"zip": str}), seed)
+    cents = pd.read_csv(CITY["centroids_csv"], dtype={"zip": str})
+    return attach_locations(clean_calls(raw), cents, seed, radius_km=CITY.get("area_radius_km"))
 
 
 if __name__ == "__main__":

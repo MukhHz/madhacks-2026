@@ -6,12 +6,15 @@ CITY = {
     "socrata_url": "https://data.cityofnewyork.us/resource/76xm-jjuj.json",
     "borough_filter": "BROOKLYN",
     "centroids_csv": "data/zcta_centroids.csv",
-    # Anonymized hospitals A/B/C: central, south, and east Brooklyn. Not real hospital names.
+    # Three neighboring real 911-receiving ERs in central/east Brooklyn, geocoded with the US Census
+    # geocoder. Always shown anonymized as A/B/C; never named in the app or pitch.
     "hospitals": [
-        {"id": "A", "lat": 40.655, "lon": -73.945},
-        {"id": "B", "lat": 40.600, "lon": -73.960},
-        {"id": "C", "lat": 40.665, "lon": -73.895},
+        {"id": "A", "lat": 40.65577, "lon": -73.94523},
+        {"id": "B", "lat": 40.65524, "lon": -73.91221},
+        {"id": "C", "lat": 40.67802, "lon": -73.93851},
     ],
+    # Keep only zip codes whose centroid is within this distance of the nearest of A/B/C.
+    "area_radius_km": 2.5,
 }
 
 HOSPITALS = CITY["hospitals"]
