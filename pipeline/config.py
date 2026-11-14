@@ -1,0 +1,27 @@
+"""Every city-specific value lives here (any-city rule). Swap this dict to build another city's twin."""
+
+CITY = {
+    "name": "New York City",
+    "area": "Brooklyn",
+    "socrata_url": "https://data.cityofnewyork.us/resource/76xm-jjuj.json",
+    "borough_filter": "BROOKLYN",
+    "centroids_csv": "data/zcta_centroids.csv",
+    # Anonymized hospitals A/B/C: central, south, and east Brooklyn. Not real hospital names.
+    "hospitals": [
+        {"id": "A", "lat": 40.655, "lon": -73.945},
+        {"id": "B", "lat": 40.600, "lon": -73.960},
+        {"id": "C", "lat": 40.665, "lon": -73.895},
+    ],
+}
+
+HOSPITALS = CITY["hospitals"]
+BLOCKS = ["6-8P", "8-10P", "10P-12A", "12-2A", "2-4A", "4-6A"]
+LATE_MIN = 10
+NURSE_SHIFT_USD = 180   # placeholder: ~$90/h x 2h, verify
+AMB_NIGHT_USD = 3600    # placeholder: 2 units x 12h x ~$150/unit-hour, verify
+
+RAW_COLUMNS = [
+    "incident_id", "incident_datetime", "initial_severity_level_code", "zipcode",
+    "valid_incident_rspns_time_indc", "incident_response_seconds_qy",
+    "first_hosp_arrival_datetime", "incident_close_datetime",
+]

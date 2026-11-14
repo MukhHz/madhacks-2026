@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offload Planner</title>
+<style>
+:root{--bg:#f7f6f2;--card:#ffffff;--ink:#1f1e1b;--muted:#6b6a64;--line:#e3e1d9;--red:#d64541;--green:#3f8f3a;--amber:#c27a12;--blue:#2f6fd0;--blue-bg:#e6effb;--green-bg:#e8f3e1;--red-bg:#fbeaea;--map:#eeece4}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161614;--card:#211f1d;--ink:#eeece6;--muted:#a19f97;--line:#3a3834;--red:#ef6a66;--green:#7cc36f;--amber:#e8a33a;--blue:#7aa8f0;--blue-bg:#1d2a3d;--green-bg:#1f2e1c;--red-bg:#3a1f1f;--map:#2a2825}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px}
+h1{font-size:20px;font-weight:600;margin:0}
+.sub{color:var(--muted);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+button,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:1px}
+.real{background:var(--green-bg);color:var(--green)}.sim{background:var(--blue-bg);color:var(--blue)}
+.label{font-size:13px;color:var(--muted);margin:0 0 6px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+table.sched{width:100%;border-collapse:separate;border-spacing:4px;table-layout:fixed}
+.sched th{font-size:12px;font-weight:500;color:var(--muted)}
+.sched td{height:42px;border:1px dashed var(--line);border-radius:8px;text-align:center;cursor:pointer;font-size:12px;user-select:none}
+.sched td:hover{border-color:var(--muted)}
+.sched td.on{background:var(--green-bg);border:1px solid var(--green);color:var(--green);font-weight:600}
+.sched td.ai{outline:2px dashed var(--blue);outline-offset:-4px}
+.heat1{background:color-mix(in srgb,var(--red) 8%,transparent)}.heat2{background:color-mix(in srgb,var(--red) 16%,transparent)}.heat3{background:color-mix(in srgb,var(--red) 26%,transparent)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat .v{font-size:24px;font-weight:600}
+.bars .b{display:grid;grid-template-columns:120px minmax(0,1fr) 54px;gap:8px;align-items:center;font-size:13px;margin:6px 0}
+.track{height:14px;background:var(--map);border-radius:4px;overflow:hidden}.fill{height:100%;border-radius:4px;transition:width .4s}
+.banner{margin-top:14px;padding:12px 14px;border-radius:10px;background:var(--blue-bg);color:var(--ink);font-size:15px}
+input[type=range]{accent-color:var(--blue)}
+.foot{color:var(--muted);font-size:12px;margin-top:14px}
+svg text{font-family:inherit}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1>Offload Planner</h1>
+    <div class="sub">Where and when should your offload nurses go tonight? · Brooklyn · Hospitals A, B, C</div>
+  </div>
+  <div class="row">
+    <label class="sub" for="night">Night</label>
+    <select id="night">
+      <option value="typical">Typical Friday</option>
+      <option value="holiday">Holiday weekend Friday</option>
+      <option value="heat">Heat wave Friday</option>
+    </select>
+  </div>
+</header>
+
+<div class="grid">
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:6px">
+      <p class="label" style="margin:0">Friday night replay <span class="tag real">REAL call times</span><span class="tag sim">SIM outcomes</span></p>
+      <div class="row"><button id="play" class="primary">▶ Play night</button><span id="clock" style="font-variant-numeric:tabular-nums;font-weight:600;min-width:64px">6:00 PM</span></div>
+    </div>
+    <svg id="map" viewBox="0 0 520 400" width="100%" role="img" aria-label="Map of Brooklyn calls and hospitals"></svg>
+    <input id="scrub" type="range" min="0" max="720" value="720" step="1" style="width:100%">
+    <div class="sub"><span style="color:var(--green)">●</span> reached in time &nbsp; <span style="color:var(--red)">●</span> reached late (over 10 min) &nbsp; <span style="color:var(--amber)">■</span> ambulance stuck at the door</div>
+  </div>
+
+  <div class="card">
+    <p class="label">Nurse schedule: tap a slot to place an offload nurse (2-hour shift)</p>
+    <table class="sched" id="sched"></table>
+    <div class="row" style="margin-top:10px;justify-content:space-between">
+      <div class="row"><label class="sub" for="budget">Budget</label><input id="budget" type="range" min="1" max="6" value="4" step="1"><span id="budgetOut" style="font-weight:600">4 shifts</span></div>
+      <div class="row"><button id="clear">Clear</button><button id="ai" class="primary">Show AI plan</button></div>
+    </div>
+    <p class="sub" style="margin:8px 0 0">Red shading = how jammed that hospital's door gets with no help. <span id="used"></span></p>
+
+    <p class="label" style="margin-top:16px">Compare plans: extra people reached in time</p>
+    <div class="bars" id="bars"></div>
+
+    <p class="label" style="margin-top:16px">Why: Hospital <span id="whyH">A</span> door wait <span class="tag sim">SIM, calibrated to REAL ~43 min</span></p>
+    <svg id="why" viewBox="0 0 360 110" width="100%"></svg>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="sub">Reached late</div><div class="v" id="sLate">–</div></div>
+  <div class="stat"><div class="sub">Extra people in time</div><div class="v" id="sGain">–</div></div>
+  <div class="stat"><div class="sub">Cost tonight</div><div class="v" id="sCost">–</div></div>
+  <div class="stat"><div class="sub">Cost per extra person</div><div class="v" id="sPer">–</div></div>
+</div>
+<div class="banner" id="banner"></div>
+<div class="foot">Mockup with a toy model. Final version: call times from NYC EMS Incident Dispatch Data (Brooklyn Fridays), hospital time from arrival→close timestamps, outcomes from our simulation, plans from a greedy optimizer precomputed on Databricks. Hospitals anonymized. Costs assume ~$90/h nurse; ambulance ≈ $150/unit-hour (to verify).</div>
+</div>
+
+<script>
+const BLOCKS=["6–8P","8–10P","10P–12A","12–2A","2–4A","4–6A"];
+const HOSP=[{n:"A",x:200,y:150},{n:"B",x:330,y:270},{n:"C",x:360,y:110}];
+const NIGHTS={
+  typical:{calls:560,cong:[[1,2,4,5,4,2],[0,1,2,3,2,1],[0,0,1,1,1,0]]},
+  holiday:{calls:680,cong:[[2,3,5,6,5,3],[1,2,3,4,3,2],[0,1,1,2,1,1]]},
+  heat:{calls:640,cong:[[1,1,2,3,2,1],[2,3,5,6,4,2],[1,1,2,2,1,0]]}
+};
+const NURSE_COST=180, AMB_COST=3600;
+let night="typical", plan=new Set(), aiPlan=new Set(), showAI=false, calls=[], t=720, playing=false;
+
+function rng(seed){return()=>{seed=(seed*16807)%2147483647;return seed/2147483647}}
+const inBrooklyn=(x,y)=>{const cx=270,cy=210;return ((x-cx)/235)**2+((y-cy)/175)**2<1 && !(x>420&&y<120)};
+function genCalls(){
+  const r=rng(night==="typical"?11:night==="holiday"?23:37), N=NIGHTS[night].calls, w=[.13,.15,.19,.2,.18,.15];
+  calls=[];
+  while(calls.length<N){
+    const x=40+r()*460,y=30+r()*350; if(!inBrooklyn(x,y))continue;
+    let u=r(),b=0,acc=0; for(;b<5;b++){acc+=w[b];if(u<acc)break}
+    const m=b*120+r()*120;
+    let h=0,best=1e9; HOSP.forEach((H,i)=>{const d=Math.hypot(H.x-x,H.y-y)*(i===0?.8:1);if(d<best){best=d;h=i}});
+    calls.push({x,y,m,h,b,u:r()});
+  }
+}
+function stuck(p,h,b,amb){
+  const c=NIGHTS[night].cong[h][b];
+  let red=(p.has(h+"-"+b)?2.6:0)+(b>0&&p.has(h+"-"+(b-1))?1:0);
+  return Math.max(0,c-red);
+}
+function late(p,amb){
+  let n=0; const flags=calls.map(c=>{const s=stuck(p,c.h,c.b);let pr=.06+.11*s;if(amb)pr=Math.max(.04,pr-.025);const l=c.u<pr;if(l)n++;return l});
+  return {n,flags};
+}
+function greedy(k){
+  const p=new Set();
+  for(let i=0;i<k;i++){let best=null,bv=1e9;
+    for(let h=0;h<3;h++)for(let b=0;b<6;b++){const key=h+"-"+b;if(p.has(key))continue;p.add(key);const v=late(p).n;p.delete(key);if(v<bv){bv=v;best=key}}
+    p.add(best)}
+  return p;
+}
+const budget=()=>+document.getElementById("budget").value;
+const money=v=>"$"+Math.round(v).toLocaleString();
+
+function render(){
+  const base=late(new Set()).n, amb=late(new Set(),true).n, mine=late(plan).n;
+  aiPlan=greedy(budget()); const ai=late(aiPlan).n;
+  const cur=showAI?aiPlan:plan, res=late(cur), gain=base-res.n, cost=cur.size*NURSE_COST;
+  // map
+  const minute=t; let s=`<path d="M60,210 C60,90 160,40 280,38 C400,36 470,90 480,150 C495,250 430,370 280,382 C150,392 60,330 60,210Z" fill="var(--map)" stroke="var(--line)"/>`;
+  s+=`<text x="70" y="390" font-size="12" fill="var(--muted)">Brooklyn (simplified)</text>`;
+  calls.forEach((c,i)=>{if(c.m>minute)return;const fresh=minute-c.m<20;s+=`<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="${fresh?4.5:2.8}" fill="${res.flags[i]?"var(--red)":"var(--green)"}" opacity="${fresh?1:.7}"/>`});
+  const bNow=Math.min(5,Math.floor(Math.min(minute,719)/120));
+  HOSP.forEach((H,h)=>{const q=Math.round(stuck(cur,h,bNow));const nurse=cur.has(h+"-"+bNow);
+    s+=`<rect x="${H.x-17}" y="${H.y-17}" width="34" height="34" rx="7" fill="var(--card)" stroke="var(--ink)" stroke-width="1.5"/><text x="${H.x}" y="${H.y+6}" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ink)">${H.n}</text>`;
+    for(let j=0;j<q;j++)s+=`<rect x="${H.x+22+j*12}" y="${H.y-7}" width="10" height="14" rx="2" fill="var(--amber)"/>`;
+    if(nurse)s+=`<text x="${H.x}" y="${H.y-24}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--green)">+ nurse</text>`;
+    if(q>0)s+=`<text x="${H.x+22}" y="${H.y+22}" font-size="11" fill="var(--amber)">${q} stuck</text>`;});
+  document.getElementById("map").innerHTML=s;
+  const hh=18+Math.floor(minute/60),mm=Math.floor(minute%60);const h12=((hh+11)%12)+1;
+  document.getElementById("clock").textContent=`${h12}:${String(mm).padStart(2,"0")} ${hh%24<12?"AM":"PM"}`;
+  // schedule
+  const cong=NIGHTS[night].cong;let tb=`<tr><th></th>${BLOCKS.map(b=>`<th>${b}</th>`).join("")}</tr>`;
+  for(let h=0;h<3;h++){tb+=`<tr><th style="text-align:left">Hosp ${HOSP[h].n}</th>`;
+    for(let b=0;b<6;b++){const k=h+"-"+b,on=cur.has(k),c=cong[h][b];const heat=c>=5?3:c>=3?2:c>=1?1:0;
+      tb+=`<td data-k="${k}" class="${on?"on":"heat"+heat} ${!showAI&&aiPlan.has(k)&&false?"ai":""}">${on?"RN":""}</td>`}
+    tb+="</tr>"}
+  const tbl=document.getElementById("sched");tbl.innerHTML=tb;
+  tbl.querySelectorAll("td").forEach(td=>td.onclick=()=>{if(showAI){plan=new Set(aiPlan);showAI=false}const k=td.dataset.k;
+    if(plan.has(k))plan.delete(k);else if(plan.size<budget())plan.add(k);else{flash(`Budget is ${budget()} shifts. Remove one or raise the budget.`);return}render()});
+  document.getElementById("used").textContent=showAI?"Showing AI plan.":`You've placed ${plan.size} of ${budget()}.`;
+  document.getElementById("ai").textContent=showAI?"Back to my plan":"Show AI plan";
+  // bars
+  const rows=[["Do nothing",0,"var(--muted)"],["+2 ambulances",base-amb,"var(--amber)"],["Your plan",base-mine,"var(--ink)"],["AI plan",base-ai,"var(--blue)"]];
+  const mx=Math.max(1,...rows.map(r=>r[1]));
+  document.getElementById("bars").innerHTML=rows.map(r=>`<div class="b"><span>${r[0]}</span><div class="track"><div class="fill" style="width:${Math.max(0,r[1])/mx*100}%;background:${r[2]}"></div></div><span style="text-align:right;font-weight:600">+${Math.max(0,r[1])}</span></div>`).join("");
+  // why chart
+  let worst=0,wv=-1;cong.forEach((r,h)=>{const v=r.reduce((a,b)=>a+b);if(v>wv){wv=v;worst=h}});
+  document.getElementById("whyH").textContent=HOSP[worst].n;
+  let w="";for(let b=0;b<6;b++){const d0=25+9*cong[worst][b],d1=25+9*stuck(cur,worst,b),x=20+b*56;
+    w+=`<rect x="${x}" y="${90-d0}" width="20" height="${d0}" rx="2" fill="var(--red)" opacity=".35"/><rect x="${x+22}" y="${90-d1}" width="20" height="${d1}" rx="2" fill="var(--green)"/><text x="${x+21}" y="104" text-anchor="middle" font-size="10" fill="var(--muted)">${BLOCKS[b]}</text>`}
+  w+=`<text x="350" y="12" text-anchor="end" font-size="10" fill="var(--muted)">minutes at door: faded = no help, green = this plan</text>`;
+  document.getElementById("why").innerHTML=w;
+  // stats
+  document.getElementById("sLate").textContent=res.n;
+  document.getElementById("sGain").textContent="+"+gain;
+  document.getElementById("sCost").textContent=money(cost);
+  document.getElementById("sPer").textContent=gain>0?money(cost/gain):"–";
+  document.getElementById("budgetOut").textContent=budget()+" shifts";
+  const ambGain=base-amb;
+  document.getElementById("banner").innerHTML=showAI
+    ?`<b>AI plan:</b> ${gain} more people reached in time for ${money(cost)}. Adding 2 ambulances reaches only ${ambGain} more for ${money(AMB_COST)}. The bottleneck is Hospital ${HOSP[worst].n}'s door, not the ambulance fleet.`
+    :plan.size===0?`Tap slots to build your own nurse plan, then press <b>Show AI plan</b> to see if you beat it.`
+    :`<b>Your plan:</b> ${base-mine} more people in time. The AI plan with the same budget reaches <b>${base-ai}</b>.`;
+}
+function flash(m){const b=document.getElementById("banner");b.textContent=m}
+document.getElementById("ai").onclick=()=>{showAI=!showAI;render()};
+document.getElementById("clear").onclick=()=>{plan.clear();showAI=false;render()};
+document.getElementById("budget").oninput=()=>{while(plan.size>budget())plan.delete([...plan].pop());render()};
+document.getElementById("night").onchange=e=>{night=e.target.value;plan.clear();showAI=false;genCalls();render()};
+document.getElementById("scrub").oninput=e=>{t=+e.target.value;render()};
+document.getElementById("play").onclick=()=>{if(playing)return;playing=true;t=0;const start=performance.now();
+  (function step(now){t=Math.min(720,(now-start)/20000*720);document.getElementById("scrub").value=t;render();if(t<720)requestAnimationFrame(step);else playing=false})(start)};
+genCalls();render();
+</script>
+</body>
+</html>
